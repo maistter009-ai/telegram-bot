@@ -11,7 +11,7 @@ GEMINI_API_KEY = "AIzaSyDXBCp5UINXDeu8HLr9UOYRHcB9eo0m6tU"
 
 GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
-    "gemini-2.5-flash-preview-image-generation:generateContent"
+    "gemini-gemini-3.1-flash-image-preview:generateContent"
     f"?key={GEMINI_API_KEY}"
 )
 
