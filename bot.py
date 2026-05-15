@@ -5,50 +5,48 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # ============================
+# НАСТРОЙКИ
+# ============================
 BOT_TOKEN = "6903947493:AAEKPqpglr4WHxcREAJYcE554JVGeQOqF-0"
 GEMINI_API_KEY = "AIzaSyDXBCp5UINXDeu8HLr9UOYRHcB9eo0m6tU"
-# ============================
 
+# Исправленный URL (убрано двойное "gemini-" и исправлено название модели)
 GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
-    "gemini-gemini-3.1-flash-image-preview:generateContent"
+    "gemini-3.1-flash-image-preview:generateContent"
     f"?key={GEMINI_API_KEY}"
 )
 
+# Настройка логирования
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
+# ============================
+# КОМАНДЫ БОТА
+# ============================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "👋 Привет! Я генерирую изображения по описанию.\n\n"
-        "Просто напиши мне что нарисовать — на русском или английском.\n\n"
-        "Например:\n"
-        "• космический кот в неоновом городе\n"
-        "• девушка-самурай под сакурой, digital art\n"
-        "• заброшенный замок в туманном лесу"
+        "Просто напиши мне, что нарисовать.\n\n"
+        "Например: космический кот в неоновом городе"
     )
-
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "ℹ️ Просто напиши описание картинки — и я её сгенерирую.\n\n"
-        "Советы для хорошего результата:\n"
-        "• Добавь стиль: digital art, anime, photorealistic, oil painting\n"
-        "• Укажи настроение: dark, vibrant, cinematic, dreamy\n"
-        "• Опиши детали: освещение, время суток, окружение"
+        "ℹ️ Советы для хорошего результата:\n"
+        "• Добавляй стиль: digital art, anime, photorealistic\n"
+        "• Указывай детали: освещение, время суток, окружение"
     )
-
 
 async def generate_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
     prompt = update.message.text.strip()
     user = update.message.from_user.first_name
 
     logger.info(f"Запрос от {user}: {prompt}")
-
     status_msg = await update.message.reply_text("⏳ Генерирую изображение...")
 
     try:
@@ -70,18 +68,19 @@ async def generate_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await status_msg.edit_text(f"❌ Ошибка API: {error_msg}")
             return
 
-        parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+        # Ищем изображение в ответе
+        candidates = data.get("candidates", [{}])
+        parts = candidates[0].get("content", {}).get("parts", [])
         image_part = next((p for p in parts if "inlineData" in p), None)
 
         if not image_part:
             await status_msg.edit_text(
-                "⚠️ Изображение не было сгенерировано.\n"
-                "Попробуй другой промпт или добавь больше деталей."
+                "⚠️ Изображение не создано. Попробуй изменить описание."
             )
             return
 
+        # Декодируем и отправляем
         image_bytes = base64.b64decode(image_part["inlineData"]["data"])
-
         await status_msg.delete()
         await update.message.reply_photo(
             photo=image_bytes,
@@ -89,11 +88,14 @@ async def generate_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     except httpx.TimeoutException:
-        await status_msg.edit_text("⏱ Превышено время ожидания. Попробуй ещё раз.")
+        await status_msg.edit_text("⏱ Время ожидания вышло. Попробуй еще раз.")
     except Exception as e:
         logger.error(f"Ошибка: {e}")
-        await status_msg.edit_text("❌ Что-то пошло не так. Попробуй ещё раз.")
+        await status_msg.edit_text("❌ Произошла ошибка. Проверь логи в Render.")
 
+# ============================
+# ЗАПУСК
+# ============================
 
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
@@ -102,9 +104,8 @@ def main():
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, generate_image))
 
-    logger.info("Бот запущен. Нажми Ctrl+C для остановки.")
+    logger.info("Бот запущен...")
     app.run_polling()
-
 
 if __name__ == "__main__":
     main()
